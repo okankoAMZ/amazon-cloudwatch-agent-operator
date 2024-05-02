@@ -87,7 +87,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator
+        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/
         run: |
           echo hi
           ls
