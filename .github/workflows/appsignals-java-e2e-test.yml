@@ -92,7 +92,17 @@ jobs:
             -var="sample_app_image=${{ env.SAMPLE_APP_FRONTEND_SERVICE_IMAGE }}" \
             -var="sample_remote_app_image=${{ env.SAMPLE_APP_REMOTE_SERVICE_IMAGE }}"
 
-  
+
+      - name: Download enablement script
+        uses: actions/checkout@v4
+        with:
+          repository: aws-observability/application-signals-demo
+          ref: main
+          path: enablement-script
+          sparse-checkout: |
+            scripts/eks/appsignals/enable-app-signals.sh
+            scripts/eks/appsignals/clean-app-signals.sh
+          sparse-checkout-cone-mode: false
 
       # local directory to store the kubernetes config
       - name: Create kubeconfig directory

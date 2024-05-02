@@ -210,6 +210,39 @@ jobs:
         env:
           cluster-name: ${{ inputs.test-python-cluster-name }}
 
+      - name: Confirm EKS Version Support
+        run: |
+          if [[ 
+            $(go list -m k8s.io/client-go | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+            || $(go list -m k8s.io/apimachinery | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+            || $(go list -m k8s.io/component-base | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+            || $(go list -m k8s.io/kubectl | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+          ]]; then 
+          echo k8s.io/client-go $(go list -m k8s.io/client-go) is less than ${{ matrix.arrays.k8sVersion }}
+          echo or k8s.io/apimachinery $(go list -m k8s.io/apimachinery) is less than ${{ matrix.arrays.k8sVersion }}
+          echo or k8s.io/component-base $(go list -m k8s.io/component-base) is less than ${{ matrix.arrays.k8sVersion }}
+          echo or k8s.io/kubectl $(go list -m k8s.io/kubectl) is less than ${{ matrix.arrays.k8sVersion }}, fail test
+          echo "please run go get -u && go mod tidy"
+          exit 1; 
+          fi
+
+      - name: Verify Terraform version
+        run: terraform --version
+
+      - name: Terraform apply
+        uses: nick-fields/retry@v2
+        with:
+          max_attempts: 1
+          timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
+          retry_wait_seconds: 5
+          command: |
+            cd integration-tests/terraform/eks
+            terraform init
+            if terraform apply -var="beta=${{ github.event.inputs.run_in_beta }}" -var="addon_name=${{ github.event.inputs.addon_name }}" -var="addon_version=${{ github.event.inputs.addon_version }}" -var="k8s_version=${{ matrix.arrays.k8sVersion }}" --auto-approve; then
+              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve
+            else
+              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
+            fi
 
 
       - name: Remove log group deletion command
