@@ -78,6 +78,34 @@ jobs:
           curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz"
           tar -xzf eksctl_Linux_amd64.tar.gz -C ${{ github.workspace }}/eksctl && rm eksctl_Linux_amd64.tar.gz
           echo "${{ github.workspace }}/eksctl" >> $GITHUB_PATH
+      # local directory to store the kubernetes config
+      - name: Create kubeconfig directory
+        run: mkdir -p ${{ github.workspace }}/.kube
+
+      - name: Set KUBECONFIG environment variable
+        run: echo KUBECONFIG="${{ github.workspace }}/.kube/config" >> $GITHUB_ENV
+
+      - name: Set up kubeconfig
+        run: aws eks update-kubeconfig --name ${{ inputs.test-java-cluster-name }} --region ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Install eksctl
+        run: |
+          mkdir ${{ github.workspace }}/eksctl
+          curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz"
+          tar -xzf eksctl_Linux_amd64.tar.gz -C ${{ github.workspace }}/eksctl && rm eksctl_Linux_amd64.tar.gz
+          echo "${{ github.workspace }}/eksctl" >> $GITHUB_PATH
+
+      - name: Create role for AWS access from the sample app
+        id: create_service_account
+        run: |
+          eksctl create iamserviceaccount \
+          --name service-account-${{ env.TESTING_ID }} \
+          --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
+          --cluster ${{ inputs.test-java-cluster-name }} \
+          --role-name eks-s3-access-${{ env.TESTING_ID }} \
+          --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
+          --region ${{ env.AWS_DEFAULT_REGION }} \
+          --approve
 
       - name: Set up terraform
         uses: hashicorp/setup-terraform@v3
@@ -162,7 +190,7 @@ jobs:
             echo "Operator image did not change"
             exit 1
           fi
-        
+
       - name: Get the sample app endpoint
         run: |
           echo "APP_ENDPOINT=$(terraform output sample_app_endpoint)" >> $GITHUB_ENV
@@ -298,3 +326,6 @@ jobs:
           --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
           --cluster env.CLUSTER_NAME \
           --region ${{ env.AWS_DEFAULT_REGION }}
+
+
+
