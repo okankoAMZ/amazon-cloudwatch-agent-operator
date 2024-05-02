@@ -86,7 +86,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: terraform/gpu
+        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/integration-tests/terraform/gpu
         run: |
           echo $(pwd)
           terraform init
