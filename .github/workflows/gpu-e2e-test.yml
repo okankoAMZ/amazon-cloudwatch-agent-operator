@@ -86,130 +86,6 @@ jobs:
           --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
           --region ${{ env.AWS_DEFAULT_REGION }} \
           --approve
-
-      - name: Set up terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_wrapper: false
-
-      - name: Deploy sample app via terraform
-        working-directory: terraform/gpu
-        run: |
-          terraform init
-          terraform validate
-          terraform apply -auto-approve \
-            -var="test_id=${{ env.TESTING_ID }}" \
-            -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
-            -var="kube_directory_path=${{ github.workspace }}/.kube" \
-            -var="eks_cluster_name=${{ inputs.test-python-cluster-name }}" \
-            -var="eks_cluster_context_name=$(kubectl config current-context)" \
-            -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
-            -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
-            -var="sample_app_image=${{ env.SAMPLE_APP_FRONTEND_SERVICE_IMAGE }}" \
-            -var="sample_remote_app_image=${{ env.SAMPLE_APP_REMOTE_SERVICE_IMAGE }}"
-
-      # Enable App Signals on the test cluster
-      - name: Enable App Signals
-        working-directory: enablement-script/scripts/eks/appsignals
-        run: |
-          ./enable-app-signals.sh \
-          ${{ inputs.test-python-cluster-name }} \
-          ${{ env.AWS_DEFAULT_REGION }} \
-          ${{ env.SAMPLE_APP_NAMESPACE }}
-
-      - name: Save CloudWatch Agent Operator image to environment before patching
-        run: |
-          echo "OLD_CW_AGENT_OPERATOR_IMAGE"=$(kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=amazon-cloudwatch-observability -o json | \
-          jq '.items[0].status.containerStatuses[0].image') >> $GITHUB_ENV
-
-      - name: Patch the CloudWatch Agent Operator image and restart CloudWatch pods
-        run: |
-          kubectl patch deploy -n amazon-cloudwatch amazon-cloudwatch-observability-controller-manager --type='json' -p '[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "${{ env.ECR_OPERATOR_STAGING_REPO }}:${{ inputs.tag }}"}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Always"}]]'
-          kubectl delete pods --all -n amazon-cloudwatch
-          kubectl wait --for=condition=Ready pod --all -n amazon-cloudwatch
-
-      # Application pods need to be restarted for the
-      # app signals instrumentation to take effect
-      - name: Restart the app pods
-        run: kubectl delete pods --all -n ${{ env.SAMPLE_APP_NAMESPACE }}
-
-      - name: Wait for sample app pods to come up
-        run: |
-          kubectl wait --for=condition=Ready pod --all -n ${{ env.SAMPLE_APP_NAMESPACE }} \
-
-      - name: Get remote service deployment name and IP
-        run: |
-          echo "REMOTE_SERVICE_DEPLOYMENT_NAME=$(kubectl get deployments -n ${{ env.SAMPLE_APP_NAMESPACE }} --selector=app=remote-app -o jsonpath='{.items[0].metadata.name}')" >> $GITHUB_ENV
-          echo "REMOTE_SERVICE_POD_IP=$(kubectl get pods -n ${{ env.SAMPLE_APP_NAMESPACE }} --selector=app=remote-app -o jsonpath='{.items[0].status.podIP}')" >> $GITHUB_ENV
-
-      - name: Log pod ADOT image ID
-        run: |
-          kubectl get pods -n ${{ env.SAMPLE_APP_NAMESPACE }} --output json | \
-          jq '.items[0].status.initContainerStatuses[0].imageID'
-
-      - name: Log pod CWAgent image ID
-        run: |
-          kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=cloudwatch-agent -o json | \
-          jq '.items[0].status.containerStatuses[0].imageID'
-
-      - name: Log pod Fluent Bit image ID
-        run: |
-          kubectl get pods -n amazon-cloudwatch -l k8s-app=fluent-bit -o json | \
-          jq '.items[0].status.containerStatuses[0].imageID'
-
-      - name: Log pod CWAgent Operator image ID and save image to the environment
-        run: |
-          kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=amazon-cloudwatch-observability -o json | \
-          jq '.items[0].status.containerStatuses[0].imageID'
-          
-          echo "NEW_CW_AGENT_OPERATOR_IMAGE"=$(kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=amazon-cloudwatch-observability -o json | \
-          jq '.items[0].status.containerStatuses[0].image') >> $GITHUB_ENV
-
-      - name: Check if CW Agent Operator image has changed
-        run: |
-          if [ ${{ env.OLD_CW_AGENT_OPERATOR_IMAGE }} = ${{ env.NEW_CW_AGENT_OPERATOR_IMAGE }} ]; then
-            echo "Operator image did not change"
-            exit 1
-          fi
-
-      - name: Get the sample app endpoint
-        run: |
-          echo "APP_ENDPOINT=$(terraform output sample_app_endpoint)" >> $GITHUB_ENV
-        working-directory: terraform/eks
-
-      - name: Wait for app endpoint to come online
-        id: endpoint-check
-        run: |
-          attempt_counter=0
-          max_attempts=30
-          until $(curl --output /dev/null --silent --head --fail http://${{ env.APP_ENDPOINT }}); do
-            if [ ${attempt_counter} -eq ${max_attempts} ];then
-              echo "Max attempts reached"
-              exit 1
-            fi
-
-            printf '.'
-            attempt_counter=$(($attempt_counter+1))
-            sleep 10
-          done
-
-      # This steps increases the speed of the validation by creating the telemetry data in advance
-      - name: Call all test APIs
-        continue-on-error: true
-        run: |
-          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/outgoing-http-call/; echo
-          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/aws-sdk-call/; echo
-          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/remote-service?ip=${{ env.REMOTE_SERVICE_POD_IP }}/; echo
-          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/client-call/; echo
-
-      - name: Wait for 1 minute before validating metrics
-        run: sleep 60
-
-      - name: Validate metrics
-        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
-        env:
-          cluster-name: ${{ inputs.test-python-cluster-name }}
-
       - name: Confirm EKS Version Support
         run: |
           if [[ 
@@ -243,6 +119,130 @@ jobs:
             else
               terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
             fi
+#      - name: Set up terraform
+#        uses: hashicorp/setup-terraform@v3
+#        with:
+#          terraform_wrapper: false
+#
+#      - name: Deploy sample app via terraform
+#        working-directory: terraform/gpu
+#        run: |
+#          terraform init
+#          terraform validate
+#          terraform apply -auto-approve \
+#            -var="test_id=${{ env.TESTING_ID }}" \
+#            -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
+#            -var="kube_directory_path=${{ github.workspace }}/.kube" \
+#            -var="eks_cluster_name=${{ inputs.test-python-cluster-name }}" \
+#            -var="eks_cluster_context_name=$(kubectl config current-context)" \
+#            -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
+#            -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
+#            -var="sample_app_image=${{ env.SAMPLE_APP_FRONTEND_SERVICE_IMAGE }}" \
+#            -var="sample_remote_app_image=${{ env.SAMPLE_APP_REMOTE_SERVICE_IMAGE }}"
+#
+#      # Enable App Signals on the test cluster
+#      - name: Enable App Signals
+#        working-directory: enablement-script/scripts/eks/appsignals
+#        run: |
+#          ./enable-app-signals.sh \
+#          ${{ inputs.test-python-cluster-name }} \
+#          ${{ env.AWS_DEFAULT_REGION }} \
+#          ${{ env.SAMPLE_APP_NAMESPACE }}
+#
+#      - name: Save CloudWatch Agent Operator image to environment before patching
+#        run: |
+#          echo "OLD_CW_AGENT_OPERATOR_IMAGE"=$(kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=amazon-cloudwatch-observability -o json | \
+#          jq '.items[0].status.containerStatuses[0].image') >> $GITHUB_ENV
+#
+#      - name: Patch the CloudWatch Agent Operator image and restart CloudWatch pods
+#        run: |
+#          kubectl patch deploy -n amazon-cloudwatch amazon-cloudwatch-observability-controller-manager --type='json' -p '[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "${{ env.ECR_OPERATOR_STAGING_REPO }}:${{ inputs.tag }}"}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Always"}]]'
+#          kubectl delete pods --all -n amazon-cloudwatch
+#          kubectl wait --for=condition=Ready pod --all -n amazon-cloudwatch
+#
+#      # Application pods need to be restarted for the
+#      # app signals instrumentation to take effect
+#      - name: Restart the app pods
+#        run: kubectl delete pods --all -n ${{ env.SAMPLE_APP_NAMESPACE }}
+#
+#      - name: Wait for sample app pods to come up
+#        run: |
+#          kubectl wait --for=condition=Ready pod --all -n ${{ env.SAMPLE_APP_NAMESPACE }} \
+#
+#      - name: Get remote service deployment name and IP
+#        run: |
+#          echo "REMOTE_SERVICE_DEPLOYMENT_NAME=$(kubectl get deployments -n ${{ env.SAMPLE_APP_NAMESPACE }} --selector=app=remote-app -o jsonpath='{.items[0].metadata.name}')" >> $GITHUB_ENV
+#          echo "REMOTE_SERVICE_POD_IP=$(kubectl get pods -n ${{ env.SAMPLE_APP_NAMESPACE }} --selector=app=remote-app -o jsonpath='{.items[0].status.podIP}')" >> $GITHUB_ENV
+#
+#      - name: Log pod ADOT image ID
+#        run: |
+#          kubectl get pods -n ${{ env.SAMPLE_APP_NAMESPACE }} --output json | \
+#          jq '.items[0].status.initContainerStatuses[0].imageID'
+#
+#      - name: Log pod CWAgent image ID
+#        run: |
+#          kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=cloudwatch-agent -o json | \
+#          jq '.items[0].status.containerStatuses[0].imageID'
+#
+#      - name: Log pod Fluent Bit image ID
+#        run: |
+#          kubectl get pods -n amazon-cloudwatch -l k8s-app=fluent-bit -o json | \
+#          jq '.items[0].status.containerStatuses[0].imageID'
+#
+#      - name: Log pod CWAgent Operator image ID and save image to the environment
+#        run: |
+#          kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=amazon-cloudwatch-observability -o json | \
+#          jq '.items[0].status.containerStatuses[0].imageID'
+#
+#          echo "NEW_CW_AGENT_OPERATOR_IMAGE"=$(kubectl get pods -n amazon-cloudwatch -l app.kubernetes.io/name=amazon-cloudwatch-observability -o json | \
+#          jq '.items[0].status.containerStatuses[0].image') >> $GITHUB_ENV
+#
+#      - name: Check if CW Agent Operator image has changed
+#        run: |
+#          if [ ${{ env.OLD_CW_AGENT_OPERATOR_IMAGE }} = ${{ env.NEW_CW_AGENT_OPERATOR_IMAGE }} ]; then
+#            echo "Operator image did not change"
+#            exit 1
+#          fi
+#
+#      - name: Get the sample app endpoint
+#        run: |
+#          echo "APP_ENDPOINT=$(terraform output sample_app_endpoint)" >> $GITHUB_ENV
+#        working-directory: terraform/eks
+#
+#      - name: Wait for app endpoint to come online
+#        id: endpoint-check
+#        run: |
+#          attempt_counter=0
+#          max_attempts=30
+#          until $(curl --output /dev/null --silent --head --fail http://${{ env.APP_ENDPOINT }}); do
+#            if [ ${attempt_counter} -eq ${max_attempts} ];then
+#              echo "Max attempts reached"
+#              exit 1
+#            fi
+#
+#            printf '.'
+#            attempt_counter=$(($attempt_counter+1))
+#            sleep 10
+#          done
+#
+#      # This steps increases the speed of the validation by creating the telemetry data in advance
+#      - name: Call all test APIs
+#        continue-on-error: true
+#        run: |
+#          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/outgoing-http-call/; echo
+#          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/aws-sdk-call/; echo
+#          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/remote-service?ip=${{ env.REMOTE_SERVICE_POD_IP }}/; echo
+#          curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/client-call/; echo
+
+      - name: Wait for 1 minute before validating metrics
+        run: sleep 60
+
+      - name: Validate metrics
+        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
+        env:
+          cluster-name: ${{ inputs.test-python-cluster-name }}
+
+
 
 
       - name: Remove log group deletion command
