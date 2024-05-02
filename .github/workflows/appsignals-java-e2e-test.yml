@@ -67,14 +67,6 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
 
       # local directory to store the kubernetes config
-      - name: Create kubeconfig directory
-        run: mkdir -p ${{ github.workspace }}/.kube
-
-      - name: Set KUBECONFIG environment variable
-        run: echo KUBECONFIG="${{ github.workspace }}/.kube/config" >> $GITHUB_ENV
-
-      - name: Set up kubeconfig
-        run: aws eks update-kubeconfig --name ${{ inputs.test-java-cluster-name }} --region ${{ env.AWS_DEFAULT_REGION }}
 
       - name: Install eksctl
         run: |
@@ -101,7 +93,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: terraform/eks
+        working-directory: terraform/gpu
         run: |
           terraform init
           terraform validate
