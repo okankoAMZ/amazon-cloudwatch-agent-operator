@@ -34,6 +34,7 @@ env:
   LOG_GROUP: /aws/appsignals/eks
   ECR_OPERATOR_STAGING_REPO: ${{ vars.ECR_OPERATOR_STAGING_REPO }}
   CLUSTER_NAME: cwagent-operator-eks-integ
+  DIRECTORY: ${{ github.workspace }}/enablement-script
 
 jobs:
   appsignals-e2e-test:
@@ -88,13 +89,20 @@ jobs:
       - name: Deploy sample app via terraform
         working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/integration-tests/terraform/gpu
         run: |
+          run: |
+          # Change directory to the current value of DIRECTORY
+          cd "${{ env.DIRECTORY }}"
+          # Append terraform/gpu to the current directory
+          cd terraform/gpu
+          # Print the new current directory
+          echo "Current directory: $(pwd)"
           echo $(pwd)
           terraform init
           terraform validate
           terraform apply -auto-approve \
             -var="test_id=${{ env.TESTING_ID }}" \
             -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
-            -var="kube_directory_path=${{ github.workspace }}/.kube" \
+            -var="kube_directory_path=${{ Directory }}/.kube" \
             -var="eks_cluster_context_name=$(kubectl config current-context)" \
             -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
             -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
