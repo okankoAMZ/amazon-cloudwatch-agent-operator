@@ -33,6 +33,7 @@ env:
   METRIC_NAMESPACE: AppSignals
   LOG_GROUP: /aws/appsignals/eks
   ECR_OPERATOR_STAGING_REPO: ${{ vars.ECR_OPERATOR_STAGING_REPO }}
+  CLUSTER_NAME: cwagent-operator-eks-integ-
 
 jobs:
   appsignals-e2e-test:
@@ -58,7 +59,10 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Generate testing id
-        run: echo TESTING_ID="${{ env.AWS_DEFAULT_REGION }}-${{ github.run_id }}-${{ github.run_number }}" >> $GITHUB_ENV
+        run: |
+          TESTING_ID="${{ env.AWS_DEFAULT_REGION }}-${{ github.run_id }}-${{ github.run_number }}"
+          echo "TESTING_ID=${TESTING_ID}" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=${{ env.CLUSTER_NAME }}${TESTING_ID}" >> $GITHUB_ENV
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -89,7 +93,6 @@ jobs:
             -var="test_id=${{ env.TESTING_ID }}" \
             -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
             -var="kube_directory_path=${{ github.workspace }}/.kube" \
-            -var="eks_cluster_name=${{ inputs.test-java-cluster-name }}" \
             -var="eks_cluster_context_name=$(kubectl config current-context)" \
             -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
             -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
@@ -101,7 +104,7 @@ jobs:
         working-directory: enablement-script/scripts/eks/appsignals
         run: |
           ./enable-app-signals.sh \
-          ${{ inputs.test-java-cluster-name }} \
+          env.CLUSTER_NAME \
           ${{ env.AWS_DEFAULT_REGION }} \
           ${{ env.SAMPLE_APP_NAMESPACE }}
 
@@ -205,7 +208,7 @@ jobs:
           --metric-namespace ${{ env.METRIC_NAMESPACE }}
           --log-group ${{ env.LOG_GROUP }}
           --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info ${{ inputs.test-java-cluster-name }}
+          --platform-info env.CLUSTER_NAME
           --service-name sample-application-${{ env.TESTING_ID }}
           --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
           --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
@@ -222,7 +225,7 @@ jobs:
           --metric-namespace ${{ env.METRIC_NAMESPACE }}
           --log-group ${{ env.LOG_GROUP }}
           --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info ${{ inputs.test-java-cluster-name }}
+          --platform-info env.CLUSTER_NAME
           --service-name sample-application-${{ env.TESTING_ID }}
           --remote-service-name sample-remote-application-${{ env.TESTING_ID }}
           --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
@@ -240,7 +243,7 @@ jobs:
           --metric-namespace ${{ env.METRIC_NAMESPACE }}
           --log-group ${{ env.LOG_GROUP }}
           --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info ${{ inputs.test-java-cluster-name }}
+          --platform-info env.CLUSTER_NAME
           --service-name sample-application-${{ env.TESTING_ID }}
           --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
           --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
@@ -261,7 +264,7 @@ jobs:
         working-directory: enablement-script/scripts/eks/appsignals
         run: |
           ./clean-app-signals.sh \
-          ${{ inputs.test-java-cluster-name }} \
+          env.CLUSTER_NAME \
           ${{ env.AWS_DEFAULT_REGION }} \
           ${{ env.SAMPLE_APP_NAMESPACE }}
 
@@ -281,7 +284,7 @@ jobs:
             -var="test_id=${{ env.TESTING_ID }}" \
             -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
             -var="kube_directory_path=${{ github.workspace }}/.kube" \
-            -var="eks_cluster_name=${{ inputs.test-java-cluster-name }}" \
+            -var="eks_cluster_name=env.CLUSTER_NAME" \
             -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
             -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
             -var="sample_app_image=${{ env.SAMPLE_APP_IMAGE }}"
@@ -293,5 +296,5 @@ jobs:
           eksctl delete iamserviceaccount \
           --name service-account-${{ env.TESTING_ID }} \
           --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
-          --cluster ${{ inputs.test-java-cluster-name }} \
+          --cluster env.CLUSTER_NAME \
           --region ${{ env.AWS_DEFAULT_REGION }}
