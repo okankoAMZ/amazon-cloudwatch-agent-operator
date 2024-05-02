@@ -36,9 +36,15 @@ on:
         default: 'staging'
         type: string
 
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   id-token: write
   contents: read
+
 
 env:
   AWS_DEFAULT_REGION: us-east-1
@@ -53,81 +59,81 @@ env:
   DIRECTORY: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator
 
 jobs:
-  appsignals-e2e-test:
-    runs-on: ubuntu-latest
-    steps:
-      # This step avoids code duplication for terraform templates and the validator
-      # To simplify, we get the entire repo
-
-      - name: Generate testing id
-        run: |
-          TESTING_ID="${{ env.AWS_DEFAULT_REGION }}-${{ github.run_id }}-${{ github.run_number }}"
-          echo "TESTING_ID=${TESTING_ID}" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=${{ env.CLUSTER_NAME }}${TESTING_ID}" >> $GITHUB_ENV
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/${{ secrets.APP_SIGNALS_E2E_TEST_ROLE_NAME }}
-          aws-region: ${{ env.AWS_DEFAULT_REGION }}
-
-      # local directory to store the kubernetes config
-
-      - name: Install eksctl
-        run: |
-          mkdir ${{ github.workspace }}/eksctl
-          curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz"
-          tar -xzf eksctl_Linux_amd64.tar.gz -C ${{ github.workspace }}/eksctl && rm eksctl_Linux_amd64.tar.gz
-          echo "${{ github.workspace }}/eksctl" >> $GITHUB_PATH
-
-
-      - name: Confirm EKS Version Support
-        run: |
-          if [[ 
-            $(go list -m k8s.io/client-go | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
-            || $(go list -m k8s.io/apimachinery | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
-            || $(go list -m k8s.io/component-base | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
-            || $(go list -m k8s.io/kubectl | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
-          ]]; then 
-          echo k8s.io/client-go $(go list -m k8s.io/client-go) is less than ${{ matrix.arrays.k8sVersion }}
-          echo or k8s.io/apimachinery $(go list -m k8s.io/apimachinery) is less than ${{ matrix.arrays.k8sVersion }}
-          echo or k8s.io/component-base $(go list -m k8s.io/component-base) is less than ${{ matrix.arrays.k8sVersion }}
-          echo or k8s.io/kubectl $(go list -m k8s.io/kubectl) is less than ${{ matrix.arrays.k8sVersion }}, fail test
-          echo "please run go get -u && go mod tidy"
-          exit 1; 
-          fi
-
-      - name: Verify Terraform version
-        run: terraform --version
-
-      - name: Terraform apply
-        uses: nick-fields/retry@v2
-        with:
-          max_attempts: 1
-          timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
-          retry_wait_seconds: 5
-          command: |
-            cd integration-tests/terraform
-            ls
-            echo cding into terraform
-            cd terraform
-            ls
-            cd gpu
-            echo cding into terraform
-            ls
-            terraform init
-            if terraform apply -var="beta=${{ github.event.inputs.run_in_beta }}" -var="addon_name=${{ github.event.inputs.addon_name }}" -var="addon_version=${{ github.event.inputs.addon_version }}" -var="k8s_version=${{ matrix.arrays.k8sVersion }}" --auto-approve; then
-              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve
-            else
-              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
-            fi
-      - name: Wait for 1 minute before validating metrics
-        run: sleep 60
-
-      - name: Validate metrics
-        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
-        env:
-          cluster-name: ${{ inputs.test-python-cluster-name }}
+#  appsignals-e2e-test:
+#    runs-on: ubuntu-latest
+#    steps:
+#      # This step avoids code duplication for terraform templates and the validator
+#      # To simplify, we get the entire repo
+#
+#      - name: Generate testing id
+#        run: |
+#          TESTING_ID="${{ env.AWS_DEFAULT_REGION }}-${{ github.run_id }}-${{ github.run_number }}"
+#          echo "TESTING_ID=${TESTING_ID}" >> $GITHUB_ENV
+#          echo "CLUSTER_NAME=${{ env.CLUSTER_NAME }}${TESTING_ID}" >> $GITHUB_ENV
+#
+#      - name: Configure AWS Credentials
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          role-to-assume: arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/${{ secrets.APP_SIGNALS_E2E_TEST_ROLE_NAME }}
+#          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+#
+#      # local directory to store the kubernetes config
+#
+#      - name: Install eksctl
+#        run: |
+#          mkdir ${{ github.workspace }}/eksctl
+#          curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz"
+#          tar -xzf eksctl_Linux_amd64.tar.gz -C ${{ github.workspace }}/eksctl && rm eksctl_Linux_amd64.tar.gz
+#          echo "${{ github.workspace }}/eksctl" >> $GITHUB_PATH
+#
+#
+#      - name: Confirm EKS Version Support
+#        run: |
+#          if [[
+#            $(go list -m k8s.io/client-go | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+#            || $(go list -m k8s.io/apimachinery | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+#            || $(go list -m k8s.io/component-base | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+#            || $(go list -m k8s.io/kubectl | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+#          ]]; then
+#          echo k8s.io/client-go $(go list -m k8s.io/client-go) is less than ${{ matrix.arrays.k8sVersion }}
+#          echo or k8s.io/apimachinery $(go list -m k8s.io/apimachinery) is less than ${{ matrix.arrays.k8sVersion }}
+#          echo or k8s.io/component-base $(go list -m k8s.io/component-base) is less than ${{ matrix.arrays.k8sVersion }}
+#          echo or k8s.io/kubectl $(go list -m k8s.io/kubectl) is less than ${{ matrix.arrays.k8sVersion }}, fail test
+#          echo "please run go get -u && go mod tidy"
+#          exit 1;
+#          fi
+#
+#      - name: Verify Terraform version
+#        run: terraform --version
+#
+#      - name: Terraform apply
+#        uses: nick-fields/retry@v2
+#        with:
+#          max_attempts: 1
+#          timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
+#          retry_wait_seconds: 5
+#          command: |
+#            cd integration-tests/terraform
+#            ls
+#            echo cding into terraform
+#            cd terraform
+#            ls
+#            cd gpu
+#            echo cding into terraform
+#            ls
+#            terraform init
+#            if terraform apply -var="beta=${{ github.event.inputs.run_in_beta }}" -var="addon_name=${{ github.event.inputs.addon_name }}" -var="addon_version=${{ github.event.inputs.addon_version }}" -var="k8s_version=${{ matrix.arrays.k8sVersion }}" --auto-approve; then
+#              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve
+#            else
+#              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
+#            fi
+#      - name: Wait for 1 minute before validating metrics
+#        run: sleep 60
+#
+#      - name: Validate metrics
+#        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
+#        env:
+#          cluster-name: ${{ inputs.test-python-cluster-name }}
 
 #
 #      - name: Download enablement script
@@ -314,53 +320,133 @@ jobs:
 
       # Clean up Procedures
 
-      - name: Remove log group deletion command
-        if: always()
-        working-directory: enablement-script/scripts/eks/appsignals
+#      - name: Remove log group deletion command
+#        if: always()
+#        working-directory: enablement-script/scripts/eks/appsignals
+#        run: |
+#          delete_log_group="aws logs delete-log-group --log-group-name '${{ env.LOG_GROUP }}' --region \$REGION"
+#          sed -i "s#$delete_log_group##g" clean-app-signals.sh
+#
+#      - name: Clean Up App Signals
+#        if: always()
+#        continue-on-error: true
+#        working-directory: enablement-script/scripts/eks/appsignals
+#        run: |
+#          ./clean-app-signals.sh \
+#          ${{ env.CLUSTER_NAME }} \
+#          ${{ env.AWS_DEFAULT_REGION }} \
+#          ${{ env.SAMPLE_APP_NAMESPACE }}
+#
+#      # This step also deletes lingering resources from previous test runs
+#      - name: Delete all sample app resources
+#        if: always()
+#        continue-on-error: true
+#        timeout-minutes: 10
+#        run: kubectl delete namespace ${{ env.SAMPLE_APP_NAMESPACE }}
+#
+#      - name: Terraform destroy
+#        if: always()
+#        continue-on-error: true
+#        working-directory: terraform/eks
+#        run: |
+#          terraform destroy -auto-approve \
+#            -var="test_id=${{ env.TESTING_ID }}" \
+#            -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
+#            -var="kube_directory_path=${{ github.workspace }}/.kube" \
+#            -var="eks_cluster_name=${{ env.CLUSTER_NAME }}" \
+#            -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
+#            -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
+#            -var="sample_app_image=${{ env.SAMPLE_APP_IMAGE }}"
+#
+#      - name: Remove aws access service account
+#        if: always()
+#        continue-on-error: true
+#        run: |
+#          eksctl delete iamserviceaccount \
+#          --name service-account-${{ env.TESTING_ID }} \
+#          --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
+#          --cluster ${{ env.CLUSTER_NAME }} \
+#          --region ${{ env.AWS_DEFAULT_REGION }}
+
+
+  GenerateTestMatrix:
+    name: 'GenerateTestMatrix'
+    runs-on: ubuntu-latest
+    outputs:
+      eks_addon_matrix: ${{ steps.set-matrix.outputs.eks_addon_matrix }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+          aws-region: us-west-2
+
+      - name: Generate matrix
+        id: set-matrix
         run: |
-          delete_log_group="aws logs delete-log-group --log-group-name '${{ env.LOG_GROUP }}' --region \$REGION"
-          sed -i "s#$delete_log_group##g" clean-app-signals.sh
+          echo "::set-output name=eks_addon_matrix::$(echo $(cat integration-tests/generator/k8s_versions_matrix.json))"
 
-      - name: Clean Up App Signals
-        if: always()
-        continue-on-error: true
-        working-directory: enablement-script/scripts/eks/appsignals
+      - name: Echo test plan matrix
         run: |
-          ./clean-app-signals.sh \
-          ${{ env.CLUSTER_NAME }} \
-          ${{ env.AWS_DEFAULT_REGION }} \
-          ${{ env.SAMPLE_APP_NAMESPACE }}
+          echo "eks_addon_matrix: ${{ steps.set-matrix.outputs.eks_addon_matrix }}"
+          echo "Addon name ${{ github.event.inputs.addon_name }}, addon version  ${{ github.event.inputs.addon_version }} "
+  EKSAddOnIntegrationTest:
+    needs: [GenerateTestMatrix]
+    name: EKSAddOnIntegrationTest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arrays: ${{ fromJson(needs.GenerateTestMatrix.outputs.eks_addon_matrix) }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      # This step also deletes lingering resources from previous test runs
-      - name: Delete all sample app resources
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 10
-        run: kubectl delete namespace ${{ env.SAMPLE_APP_NAMESPACE }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+          aws-region: us-west-2
 
-      - name: Terraform destroy
-        if: always()
-        continue-on-error: true
-        working-directory: terraform/eks
+      - name: Confirm EKS Version Support
         run: |
-          terraform destroy -auto-approve \
-            -var="test_id=${{ env.TESTING_ID }}" \
-            -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
-            -var="kube_directory_path=${{ github.workspace }}/.kube" \
-            -var="eks_cluster_name=${{ env.CLUSTER_NAME }}" \
-            -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
-            -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
-            -var="sample_app_image=${{ env.SAMPLE_APP_IMAGE }}"
+          if [[ 
+            $(go list -m k8s.io/client-go | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+            || $(go list -m k8s.io/apimachinery | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+            || $(go list -m k8s.io/component-base | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+            || $(go list -m k8s.io/kubectl | cut -d ' ' -f 2 | cut -d '.' -f 2) -lt $( echo ${{ matrix.arrays.k8sVersion }} | cut -d '.' -f 2)
+          ]]; then 
+          echo k8s.io/client-go $(go list -m k8s.io/client-go) is less than ${{ matrix.arrays.k8sVersion }}
+          echo or k8s.io/apimachinery $(go list -m k8s.io/apimachinery) is less than ${{ matrix.arrays.k8sVersion }}
+          echo or k8s.io/component-base $(go list -m k8s.io/component-base) is less than ${{ matrix.arrays.k8sVersion }}
+          echo or k8s.io/kubectl $(go list -m k8s.io/kubectl) is less than ${{ matrix.arrays.k8sVersion }}, fail test
+          echo "please run go get -u && go mod tidy"
+          exit 1; 
+          fi
 
-      - name: Remove aws access service account
-        if: always()
-        continue-on-error: true
-        run: |
-          eksctl delete iamserviceaccount \
-          --name service-account-${{ env.TESTING_ID }} \
-          --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
-          --cluster ${{ env.CLUSTER_NAME }} \
-          --region ${{ env.AWS_DEFAULT_REGION }}
+      - name: Verify Terraform version
+        run: terraform --version
 
+      - name: Terraform apply
+        uses: nick-fields/retry@v2
+        with:
+          max_attempts: 1
+          timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
+          retry_wait_seconds: 5
+          command: |
+            cd integration-tests/terraform/gpu
 
-
+            terraform init
+            if terraform apply -var="beta=${{ github.event.inputs.run_in_beta }}" -var="addon_name=${{ github.event.inputs.addon_name }}" -var="addon_version=${{ github.event.inputs.addon_version }}" -var="k8s_version=${{ matrix.arrays.k8sVersion }}" --auto-approve; then
+              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve
+            else
+              terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
+            fi
