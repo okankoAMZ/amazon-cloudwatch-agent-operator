@@ -79,17 +79,6 @@ jobs:
           tar -xzf eksctl_Linux_amd64.tar.gz -C ${{ github.workspace }}/eksctl && rm eksctl_Linux_amd64.tar.gz
           echo "${{ github.workspace }}/eksctl" >> $GITHUB_PATH
 
-      - name: Create role for AWS access from the sample app
-        id: create_service_account
-        run: |
-          eksctl create iamserviceaccount \
-          --name service-account-${{ env.TESTING_ID }} \
-          --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
-          --cluster ${{ env.CLUSTER_NAME }} \
-          --role-name eks-s3-access-${{ env.TESTING_ID }} \
-          --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
-          --region ${{ env.AWS_DEFAULT_REGION }} \
-          --approve
 
       - name: Set up terraform
         uses: hashicorp/setup-terraform@v3
@@ -111,6 +100,17 @@ jobs:
             -var="sample_app_image=${{ env.SAMPLE_APP_FRONTEND_SERVICE_IMAGE }}" \
             -var="sample_remote_app_image=${{ env.SAMPLE_APP_REMOTE_SERVICE_IMAGE }}"
 
+      - name: Create role for AWS access from the sample app
+        id: create_service_account
+        run: |
+          eksctl create iamserviceaccount \
+          --name service-account-${{ env.TESTING_ID }} \
+          --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
+          --cluster ${{ env.CLUSTER_NAME }} \
+          --role-name eks-s3-access-${{ env.TESTING_ID }} \
+          --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
+          --region ${{ env.AWS_DEFAULT_REGION }} \
+          --approve
 
       # local directory to store the kubernetes config
       - name: Create kubeconfig directory
