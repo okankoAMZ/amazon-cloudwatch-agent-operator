@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  AWS_DEFAULT_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-west-2
   TEST_ACCOUNT: ${{ secrets.APP_SIGNALS_E2E_TEST_ACCOUNT_ID }}
   SAMPLE_APP_NAMESPACE: sample-app-namespace
   SAMPLE_APP_FRONTEND_SERVICE_IMAGE: ${{ secrets.APP_SIGNALS_E2E_SAMPLE_APP_FRONTEND_SVC_IMG }}
@@ -93,7 +93,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: terraform/eks
+        working-directory: terraform/gpu
         run: |
           terraform init
           terraform validate
@@ -202,8 +202,13 @@ jobs:
           curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/remote-service?ip=${{ env.REMOTE_SERVICE_POD_IP }}/; echo
           curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/client-call/; echo
 
-      - name: Build Gradle
-        run: ./gradlew
+      - name: Wait for 1 minute before validating metrics
+        run: sleep 60
+
+      - name: Validate metrics
+        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-java-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
+        env:
+          cluster-name: ${{ inputs.test-java-cluster-name }}
 
 
 
