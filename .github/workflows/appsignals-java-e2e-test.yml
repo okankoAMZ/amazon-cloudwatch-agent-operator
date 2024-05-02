@@ -11,7 +11,7 @@ on:
   workflow_call:
     inputs:
       # Ensure two tests do not run on the same cluster at the same time through GitHub Action concurrency
-      test-python-cluster-name:
+      test-java-cluster-name:
         required: true
         type: string
       tag:
@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 env:
-  AWS_DEFAULT_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-west-2
   TEST_ACCOUNT: ${{ secrets.APP_SIGNALS_E2E_TEST_ACCOUNT_ID }}
   SAMPLE_APP_NAMESPACE: sample-app-namespace
   SAMPLE_APP_FRONTEND_SERVICE_IMAGE: ${{ secrets.APP_SIGNALS_E2E_SAMPLE_APP_FRONTEND_SVC_IMG }}
@@ -214,9 +214,9 @@ jobs:
         run: sleep 60
 
       - name: Validate metrics
-        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
+        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-java-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
         env:
-          cluster-name: ${{ inputs.test-python-cluster-name }}
+          cluster-name: ${{ inputs.test-java-cluster-name }}
 
 
       # Clean up Procedures
