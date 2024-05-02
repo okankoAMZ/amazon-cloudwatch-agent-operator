@@ -92,7 +92,9 @@ jobs:
           echo hi
           ls
           # Append terraform/gpu to the current directory
-          cd terraform/gpu
+          cd terraform
+          ls
+          cd gpu
           # Print the new current directory
           terraform init
           terraform validate
