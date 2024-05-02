@@ -33,7 +33,7 @@ env:
   METRIC_NAMESPACE: AppSignals
   LOG_GROUP: /aws/appsignals/eks
   ECR_OPERATOR_STAGING_REPO: ${{ vars.ECR_OPERATOR_STAGING_REPO }}
-  CLUSTER_NAME: cwagent-operator-eks-integ-
+  CLUSTER_NAME: cwagent-operator-eks-integ
 
 jobs:
   appsignals-e2e-test:
@@ -86,7 +86,7 @@ jobs:
         run: echo KUBECONFIG="${{ github.workspace }}/.kube/config" >> $GITHUB_ENV
 
       - name: Set up kubeconfig
-        run: aws eks update-kubeconfig --name env.CLUSTER_NAME --region ${{ env.AWS_DEFAULT_REGION }}
+        run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_DEFAULT_REGION }}
 
       - name: Install eksctl
         run: |
@@ -101,7 +101,7 @@ jobs:
           eksctl create iamserviceaccount \
           --name service-account-${{ env.TESTING_ID }} \
           --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
-          --cluster env.CLUSTER_NAME \
+          --cluster ${{ env.CLUSTER_NAME }} \
           --role-name eks-s3-access-${{ env.TESTING_ID }} \
           --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
           --region ${{ env.AWS_DEFAULT_REGION }} \
@@ -132,7 +132,7 @@ jobs:
         working-directory: enablement-script/scripts/eks/appsignals
         run: |
           ./enable-app-signals.sh \
-          env.CLUSTER_NAME \
+          ${{ env.CLUSTER_NAME }} \
           ${{ env.AWS_DEFAULT_REGION }} \
           ${{ env.SAMPLE_APP_NAMESPACE }}
 
@@ -236,7 +236,7 @@ jobs:
           --metric-namespace ${{ env.METRIC_NAMESPACE }}
           --log-group ${{ env.LOG_GROUP }}
           --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info env.CLUSTER_NAME
+          --platform-info ${{ env.CLUSTER_NAME }}
           --service-name sample-application-${{ env.TESTING_ID }}
           --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
           --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
@@ -253,7 +253,7 @@ jobs:
           --metric-namespace ${{ env.METRIC_NAMESPACE }}
           --log-group ${{ env.LOG_GROUP }}
           --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info env.CLUSTER_NAME
+          --platform-info ${{ env.CLUSTER_NAME }}
           --service-name sample-application-${{ env.TESTING_ID }}
           --remote-service-name sample-remote-application-${{ env.TESTING_ID }}
           --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
@@ -271,7 +271,7 @@ jobs:
           --metric-namespace ${{ env.METRIC_NAMESPACE }}
           --log-group ${{ env.LOG_GROUP }}
           --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info env.CLUSTER_NAME
+          --platform-info ${{ env.CLUSTER_NAME }}
           --service-name sample-application-${{ env.TESTING_ID }}
           --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
           --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
@@ -292,7 +292,7 @@ jobs:
         working-directory: enablement-script/scripts/eks/appsignals
         run: |
           ./clean-app-signals.sh \
-          env.CLUSTER_NAME \
+          ${{ env.CLUSTER_NAME }} \
           ${{ env.AWS_DEFAULT_REGION }} \
           ${{ env.SAMPLE_APP_NAMESPACE }}
 
@@ -312,7 +312,7 @@ jobs:
             -var="test_id=${{ env.TESTING_ID }}" \
             -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
             -var="kube_directory_path=${{ github.workspace }}/.kube" \
-            -var="eks_cluster_name=env.CLUSTER_NAME" \
+            -var="eks_cluster_name=${{ env.CLUSTER_NAME }}" \
             -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
             -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
             -var="sample_app_image=${{ env.SAMPLE_APP_IMAGE }}"
@@ -324,7 +324,7 @@ jobs:
           eksctl delete iamserviceaccount \
           --name service-account-${{ env.TESTING_ID }} \
           --namespace ${{ env.SAMPLE_APP_NAMESPACE }} \
-          --cluster env.CLUSTER_NAME \
+          --cluster ${{ env.CLUSTER_NAME }} \
           --region ${{ env.AWS_DEFAULT_REGION }}
 
 
