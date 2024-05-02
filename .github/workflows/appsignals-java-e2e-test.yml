@@ -19,6 +19,21 @@ on:
         required: false
         default: 'staging'
         type: string
+      addon_name:
+        required: true
+        type: string
+        default: "amazon-cloudwatch-observability"
+        description: "EKS addon name"
+      addon_version:
+        required: true
+        type: string
+        default: "v1.1.0-eksbuild.1"
+        description: "EKS addon version"
+      run_in_beta:
+        required: true
+        type: boolean
+        default: true
+        description: "Run in EKS Addon Beta environment"
 
 permissions:
   id-token: write
@@ -91,8 +106,14 @@ jobs:
           timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/terraform/gpu
-
+            cd integration-tests/terraform
+            ls
+            echo cding into terraform
+            cd terraform
+            ls
+            cd gpu
+            echo cding into terraform
+            ls
             terraform init
             if terraform apply -var="beta=${{ github.event.inputs.run_in_beta }}" -var="addon_name=${{ github.event.inputs.addon_name }}" -var="addon_version=${{ github.event.inputs.addon_version }}" -var="k8s_version=${{ matrix.arrays.k8sVersion }}" --auto-approve; then
               terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve
