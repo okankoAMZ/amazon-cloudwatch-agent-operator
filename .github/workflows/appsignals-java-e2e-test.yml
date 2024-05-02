@@ -102,7 +102,7 @@ jobs:
           terraform apply -auto-approve \
             -var="test_id=${{ env.TESTING_ID }}" \
             -var="aws_region=${{ env.AWS_DEFAULT_REGION }}" \
-            -var="kube_directory_path=${{ Directory }}/.kube" \
+            -var="kube_directory_path=${{ env.DIRECTORY }}/.kube" \
             -var="eks_cluster_context_name=$(kubectl config current-context)" \
             -var="test_namespace=${{ env.SAMPLE_APP_NAMESPACE }}" \
             -var="service_account_aws_access=service-account-${{ env.TESTING_ID }}" \
