@@ -87,11 +87,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/
+        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/terraform
         run: |
           echo hi
-          ls
-          cd amazon-cloudwatch-agent-operator
           ls
           # Change directory to the current value of DIRECTORY
           cd "${{ env.DIRECTORY }}"
