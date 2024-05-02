@@ -57,6 +57,7 @@ env:
   ECR_OPERATOR_STAGING_REPO: ${{ vars.ECR_OPERATOR_STAGING_REPO }}
   CLUSTER_NAME: cwagent-operator-eks-integ
   DIRECTORY: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator
+  TERRAFORM_AWS_ASSUME_ROLE: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
 
 jobs:
 #  appsignals-e2e-test:
@@ -395,13 +396,8 @@ jobs:
           echo "eks_addon_matrix: ${{ steps.set-matrix.outputs.eks_addon_matrix }}"
           echo "Addon name ${{ github.event.inputs.addon_name }}, addon version  ${{ github.event.inputs.addon_version }} "
   EKSAddOnIntegrationTest:
-    needs: [GenerateTestMatrix]
     name: EKSAddOnIntegrationTest
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arrays: ${{ fromJson(needs.GenerateTestMatrix.outputs.eks_addon_matrix) }}
     permissions:
       id-token: write
       contents: read
