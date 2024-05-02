@@ -90,7 +90,8 @@ jobs:
         working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator/integration-tests/terraform/gpu
         run: |
           run: |
-          ls -al
+          echo hi
+          echo ls -al
           # Change directory to the current value of DIRECTORY
           cd "${{ env.DIRECTORY }}"
           # Append terraform/gpu to the current directory
