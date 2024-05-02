@@ -210,61 +210,14 @@ jobs:
           curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/remote-service?ip=${{ env.REMOTE_SERVICE_POD_IP }}/; echo
           curl -S -s -o /dev/null http://${{ env.APP_ENDPOINT }}/client-call/; echo
 
-      - name: Build Gradle
-        run: ./gradlew
+      - name: Wait for 1 minute before validating metrics
+        run: sleep 60
 
-      # Validation for app signals telemetry data
-      - name: Call endpoint and validate generated EMF logs
-        id: log-validation
-        if: steps.endpoint-check.outcome == 'success' && !cancelled()
-        run: ./gradlew validator:run --args='-c eks/log-validation.yml
-          --testing-id ${{ env.TESTING_ID }}
-          --endpoint http://${{ env.APP_ENDPOINT }}
-          --region ${{ env.AWS_DEFAULT_REGION }}
-          --account-id ${{ env.TEST_ACCOUNT }}
-          --metric-namespace ${{ env.METRIC_NAMESPACE }}
-          --log-group ${{ env.LOG_GROUP }}
-          --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info ${{ inputs.test-java-cluster-name }}
-          --service-name sample-application-${{ env.TESTING_ID }}
-          --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
-          --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
-          --rollup'
+      - name: Validate metrics
+        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
+        env:
+          cluster-name: ${{ inputs.test-python-cluster-name }}
 
-      - name: Call endpoints and validate generated metrics
-        id: metric-validation
-        if: (success() || steps.log-validation.outcome == 'failure') && !cancelled()
-        run: ./gradlew validator:run --args='-c eks/metric-validation.yml
-          --testing-id ${{ env.TESTING_ID }}
-          --endpoint http://${{ env.APP_ENDPOINT }}
-          --region ${{ env.AWS_DEFAULT_REGION }}
-          --account-id ${{ env.TEST_ACCOUNT }}
-          --metric-namespace ${{ env.METRIC_NAMESPACE }}
-          --log-group ${{ env.LOG_GROUP }}
-          --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info ${{ inputs.test-java-cluster-name }}
-          --service-name sample-application-${{ env.TESTING_ID }}
-          --remote-service-name sample-remote-application-${{ env.TESTING_ID }}
-          --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
-          --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
-          --rollup'
-
-      - name: Call endpoints and validate generated traces
-        id: trace-validation
-        if: (success() || steps.log-validation.outcome == 'failure' || steps.metric-validation.outcome == 'failure') && !cancelled()
-        run: ./gradlew validator:run --args='-c eks/trace-validation.yml
-          --testing-id ${{ env.TESTING_ID }}
-          --endpoint http://${{ env.APP_ENDPOINT }}
-          --region ${{ env.AWS_DEFAULT_REGION }}
-          --account-id ${{ env.TEST_ACCOUNT }}
-          --metric-namespace ${{ env.METRIC_NAMESPACE }}
-          --log-group ${{ env.LOG_GROUP }}
-          --app-namespace ${{ env.SAMPLE_APP_NAMESPACE }}
-          --platform-info ${{ inputs.test-java-cluster-name }}
-          --service-name sample-application-${{ env.TESTING_ID }}
-          --remote-service-deployment-name ${{ env.REMOTE_SERVICE_DEPLOYMENT_NAME }}
-          --request-body ip=${{ env.REMOTE_SERVICE_POD_IP }}
-          --rollup'
 
       # Clean up Procedures
 
@@ -295,7 +248,7 @@ jobs:
       - name: Terraform destroy
         if: always()
         continue-on-error: true
-        working-directory: terraform/eks
+        working-directory: terraform/gpu
         run: |
           terraform destroy -auto-approve \
             -var="test_id=${{ env.TESTING_ID }}" \
