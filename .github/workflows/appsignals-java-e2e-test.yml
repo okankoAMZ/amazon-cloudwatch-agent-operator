@@ -91,6 +91,8 @@ jobs:
         run: |
           echo hi
           ls
+          cd amazon-cloudwatch-agent-operator
+          ls
           # Change directory to the current value of DIRECTORY
           cd "${{ env.DIRECTORY }}"
           # Append terraform/gpu to the current directory
