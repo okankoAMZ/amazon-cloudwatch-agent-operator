@@ -11,7 +11,7 @@ on:
   workflow_call:
     inputs:
       # Ensure two tests do not run on the same cluster at the same time through GitHub Action concurrency
-      test-java-cluster-name:
+      test-python-cluster-name:
         required: true
         type: string
       tag:
