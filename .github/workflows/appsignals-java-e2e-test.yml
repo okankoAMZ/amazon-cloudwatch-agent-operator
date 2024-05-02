@@ -88,6 +88,7 @@ jobs:
       - name: Deploy sample app via terraform
         working-directory: terraform/gpu
         run: |
+          echo pwd
           terraform init
           terraform validate
           terraform apply -auto-approve \
