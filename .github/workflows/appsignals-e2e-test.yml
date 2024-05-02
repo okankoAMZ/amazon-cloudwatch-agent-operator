@@ -8,11 +8,11 @@ on:
     inputs:
       # Ensure two tests do not run on the same cluster at the same time through GitHub Action concurrency
       test-java-cluster-name:
-        required: false
+        required: true
         default: 'e2e-cw-agent-operator-test'
         type: string
       test-python-cluster-name:
-        required: false
+        required: true
         default: 'e2e-cw-agent-operator-python-test'
         type: string
       tag:
