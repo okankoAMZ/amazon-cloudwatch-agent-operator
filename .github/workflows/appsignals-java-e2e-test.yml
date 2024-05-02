@@ -42,22 +42,6 @@ jobs:
     steps:
       # This step avoids code duplication for terraform templates and the validator
       # To simplify, we get the entire repo
-      - name: Get testing resources from aws-application-signals-test-framework
-        uses: actions/checkout@v4
-        with:
-          repository: aws-observability/aws-application-signals-test-framework
-          ref: main
-
-      - name: Download enablement script
-        uses: actions/checkout@v4
-        with:
-          repository: aws-observability/application-signals-demo
-          ref: main
-          path: enablement-script
-          sparse-checkout: |
-            scripts/eks/appsignals/enable-app-signals.sh
-            scripts/eks/appsignals/clean-app-signals.sh
-          sparse-checkout-cone-mode: false
 
       - name: Generate testing id
         run: |
@@ -87,7 +71,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator
+        working-directory: /home/runner/work
         run: |
           echo hi
           ls
