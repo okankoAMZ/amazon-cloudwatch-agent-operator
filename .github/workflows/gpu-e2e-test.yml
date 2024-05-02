@@ -58,15 +58,6 @@ jobs:
           role-to-assume: arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/${{ secrets.APP_SIGNALS_E2E_TEST_ROLE_NAME }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
 
-      # local directory to store the kubernetes config
-      - name: Create kubeconfig directory
-        run: mkdir -p ${{ github.workspace }}/.kube
-
-      - name: Set KUBECONFIG environment variable
-        run: echo KUBECONFIG="${{ github.workspace }}/.kube/config" >> $GITHUB_ENV
-
-      - name: Set up kubeconfig
-        run: aws eks update-kubeconfig --name ${{ inputs.test-python-cluster-name }} --region ${{ env.AWS_DEFAULT_REGION }}
 
       - name: Install eksctl
         run: |
@@ -119,6 +110,17 @@ jobs:
             else
               terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
             fi
+
+      # local directory to store the kubernetes config
+      - name: Create kubeconfig directory
+        run: mkdir -p ${{ github.workspace }}/.kube
+
+      - name: Set KUBECONFIG environment variable
+        run: echo KUBECONFIG="${{ github.workspace }}/.kube/config" >> $GITHUB_ENV
+
+      - name: Set up kubeconfig
+        run: aws eks update-kubeconfig --name ${{ inputs.test-python-cluster-name }} --region ${{ env.AWS_DEFAULT_REGION }}
+
 #      - name: Set up terraform
 #        uses: hashicorp/setup-terraform@v3
 #        with:
