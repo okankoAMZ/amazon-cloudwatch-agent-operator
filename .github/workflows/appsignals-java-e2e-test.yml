@@ -34,7 +34,7 @@ env:
   LOG_GROUP: /aws/appsignals/eks
   ECR_OPERATOR_STAGING_REPO: ${{ vars.ECR_OPERATOR_STAGING_REPO }}
   CLUSTER_NAME: cwagent-operator-eks-integ
-  DIRECTORY: ${{ github.workspace }}/enablement-script
+  DIRECTORY: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator
 
 jobs:
   appsignals-e2e-test:
@@ -87,17 +87,13 @@ jobs:
           terraform_wrapper: false
 
       - name: Deploy sample app via terraform
-        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/terraform
+        working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator
         run: |
           echo hi
           ls
-          # Change directory to the current value of DIRECTORY
-          cd "${{ env.DIRECTORY }}"
           # Append terraform/gpu to the current directory
           cd terraform/gpu
           # Print the new current directory
-          echo "Current directory: $(pwd)"
-          echo $(pwd)
           terraform init
           terraform validate
           terraform apply -auto-approve \
