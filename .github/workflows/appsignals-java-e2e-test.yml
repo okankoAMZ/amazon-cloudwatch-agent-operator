@@ -89,9 +89,8 @@ jobs:
       - name: Deploy sample app via terraform
         working-directory: /home/runner/work/amazon-cloudwatch-agent-operator/amazon-cloudwatch-agent-operator/integration-tests/terraform/gpu
         run: |
-          run: |
           echo hi
-          echo ls -al
+          ls
           # Change directory to the current value of DIRECTORY
           cd "${{ env.DIRECTORY }}"
           # Append terraform/gpu to the current directory
