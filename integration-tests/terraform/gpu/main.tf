@@ -115,5 +115,17 @@ resource "aws_eks_addon" "this" {
   addon_name   = var.addon_name
   cluster_name = aws_eks_cluster.this.name
   addon_version = var.addon_version
+
+
 }
+resource "null_resource" "validator" {
+  depends_on = [
+    aws_eks_addon.this
+  ]
+  provisioner "local-exec" {
+    command = "go test ./integration-tests/gpu -eksClusterName ${aws_eks_cluster.this.name} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia"
+  }
+}
+
+
 

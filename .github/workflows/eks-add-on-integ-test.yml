@@ -115,13 +115,7 @@ jobs:
             else
               terraform destroy -var="beta=${{ github.event.inputs.run_in_beta }}" -auto-approve && exit 1
             fi
-      - name: Wait for 1 minute before validating metrics
-        run: sleep 60
-
-      - name: Validate metrics
-        run: go test ./integration-tests/gpu -eksClusterName ${{ inputs.test-python-cluster-name }} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia \
-        env:
-          cluster-name: ${{ inputs.test-python-cluster-name }}
+      
 
       - name: Terraform destroy
         if: ${{ cancelled() || failure() }}
