@@ -123,7 +123,7 @@ resource "null_resource" "validator" {
     aws_eks_addon.this
   ]
   provisioner "local-exec" {
-    command = "go test ./integration-tests/gpu -eksClusterName ${aws_eks_cluster.this.name} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia"
+    command = "go test ../../gpu -eksClusterName ${aws_eks_cluster.this.name} -computeType=EKS -v -eksDeploymentStrategy=DAEMON -eksGpuType=nvidia"
   }
 }
 
