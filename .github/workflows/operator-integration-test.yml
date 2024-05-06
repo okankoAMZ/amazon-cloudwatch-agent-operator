@@ -182,8 +182,6 @@ jobs:
           sleep 5
           go test -v -run TestAnnotationsOnMultipleResources ./integration-tests/manifests/annotations -timeout 30m
   
-  
-  
 
   DaemonsetAnnotationsTest:
     name: DaemonsetAnnotationsTest

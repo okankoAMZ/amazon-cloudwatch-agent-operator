@@ -23,7 +23,7 @@ variable "addon_name" {
 
 variable "addon_version" {
   type = string
-  default = "v1.5.3-eksbuild.1"
+  default = "v1.1.0-eksbuild.1"
 }
 
 variable "beta" {
