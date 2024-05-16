@@ -104,8 +104,17 @@ func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logg
 		return fmt.Errorf("failed to create objects for %s: %w", owner.GetName(), errors.Join(errs...))
 	}
 	// Pruning owned objects in the cluster which are not should not be present after the reconciliation.
+	err := deleteObjects(ctx, kubeClient, logger, ownedObjects)
+	if err != nil {
+		return fmt.Errorf("failed to prune objects for %s: %w", owner.GetName(), err)
+	}
+	return nil
+}
+
+func deleteObjects(ctx context.Context, kubeClient client.Client, logger logr.Logger, objects map[types.UID]client.Object) error {
+	// Pruning owned objects in the cluster which are not should not be present after the reconciliation.
 	pruneErrs := []error{}
-	for _, obj := range ownedObjects {
+	for _, obj := range objects {
 		l := logger.WithValues(
 			"object_name", obj.GetName(),
 			"object_kind", obj.GetObjectKind().GroupVersionKind(),
@@ -118,10 +127,7 @@ func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logg
 			pruneErrs = append(pruneErrs, err)
 		}
 	}
-	if len(pruneErrs) > 0 {
-		return fmt.Errorf("failed to prune objects for %s: %w", owner.GetName(), errors.Join(pruneErrs...))
-	}
-	return nil
+	return errors.Join(pruneErrs...)
 }
 
 func enabledAcceleratedComputeByAgentConfig(ctx context.Context, c client.Client, log logr.Logger) bool {
