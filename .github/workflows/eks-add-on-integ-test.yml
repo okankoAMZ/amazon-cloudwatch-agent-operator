@@ -92,7 +92,7 @@ jobs:
           echo k8s.io/client-go $(go list -m k8s.io/client-go) is less than ${{ matrix.arrays.k8sVersion }}
           echo or k8s.io/apimachinery $(go list -m k8s.io/apimachinery) is less than ${{ matrix.arrays.k8sVersion }}
           echo or k8s.io/component-base $(go list -m k8s.io/component-base) is less than ${{ matrix.arrays.k8sVersion }}
-          echo or k8s.io/kubectl $(go list -m k8s.io/kubectl) is less than ${{ matrix.arrays.k8sVersion }}, fail test
+          echo or k8s.io/kubectl $(go list -m k8s.io/kubectl) is less than ${{ matrix.arrays.k8sVersion }},g
           echo "[WARNING] Kubernetes dependencies are lower than the latest Kubernetes cluster version. Please check changelog to ensure no breaking changes: https://kubernetes.io/releases/"
           fi
           exit 1;
@@ -102,6 +102,7 @@ jobs:
         run: terraform --version
 
       - name: Terraform apply
+        if: always()
         uses: nick-fields/retry@v2
         with:
           max_attempts: 1
