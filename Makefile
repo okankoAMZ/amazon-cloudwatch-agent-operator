@@ -13,7 +13,7 @@ TARGET_ALLOCATOR_VERSION ?= $(shell grep -v '\#' versions.txt | grep target-allo
 IMG_PREFIX ?= aws
 IMG_REPO ?= cloudwatch-agent-operator
 IMG ?= ${IMG_PREFIX}/${IMG_REPO}:${VERSION}
-ARCH ?= $(shell go env GOARCH)
+ARCH ?= 'amd64' #$(shell go env GOARCH)
 
 TARGET_ALLOCATOR_IMG_REPO ?= target-allocator
 TARGET_ALLOCATOR_IMG ?= ${IMG_PREFIX}/${TARGET_ALLOCATOR_IMG_REPO}:${TARGET_ALLOCATOR_VERSION}
@@ -102,6 +102,9 @@ manager: generate fmt vet
 .PHONY: targetallocator
 targetallocator:
 	cd cmd/cwa-allocator && CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) go build  -installsuffix cgo -o bin/targetallocator_${ARCH} -ldflags "${COMMON_LDFLAGS}" .
+.PHONY: ta-mock-collector
+mock-collector:
+	cd cmd/mock-collector && CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) go build  -installsuffix cgo -o bin/mockcollector_${ARCH} -ldflags "${COMMON_LDFLAGS}" .
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 .PHONY: run
@@ -176,6 +179,13 @@ container-target-allocator-push:
 container-target-allocator: GOOS = linux
 container-target-allocator: targetallocator
 	docker buildx build --load --platform linux/${ARCH} -t ${TARGET_ALLOCATOR_IMG}  cmd/cwa-allocator
+.PHONY: container-mock-collector
+container-mock-collector: GOOS = linux
+container-mock-collector: mock-collector
+	docker buildx build --load --platform linux/${ARCH} -t mock_collector  cmd/mock-collector
+.PHONY: container-python-server
+container-python-server:
+	docker buildx build --load --platform linux/${ARCH} -t python-prom-server  cmd/demo-server
 
 .PHONY: ta-build-and-push
 ta-build-and-push: container-target-allocator
