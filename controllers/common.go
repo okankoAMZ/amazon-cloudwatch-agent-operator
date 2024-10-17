@@ -57,9 +57,21 @@ func BuildCollector(params manifests.Params) ([]client.Object, error) {
 	}
 	return resources, nil
 }
+func reconcileDesiredObjectsWPrune(ctx context.Context, kubeClient client.Client, logger logr.Logger, owner metav1.Object, scheme *runtime.Scheme, desiredObjects []client.Object, ownedObjects map[types.UID]client.Object) error {
+	err := reconcileDesiredObjects(ctx, kubeClient, logger, owner, scheme, desiredObjects...)
+	if err != nil {
+		return err
+	}
+	// Pruning owned objects in the cluster which are not should not be present after the reconciliation.
+	err = deleteObjects(ctx, kubeClient, logger, ownedObjects)
+	if err != nil {
+		return fmt.Errorf("failed to prune objects for %s: %w", owner.GetName(), err)
+	}
+	return nil
+}
 
 // reconcileDesiredObjects runs the reconcile process using the mutateFn over the given list of objects.
-func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logger logr.Logger, owner metav1.Object, scheme *runtime.Scheme, desiredObjects []client.Object, ownedObjects map[types.UID]client.Object) error {
+func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logger logr.Logger, owner metav1.Object, scheme *runtime.Scheme, desiredObjects ...client.Object) error {
 	var errs []error
 	for _, desired := range desiredObjects {
 		l := logger.WithValues(
@@ -73,6 +85,7 @@ func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logg
 				continue
 			}
 		}
+
 		// existing is an object the controller runtime will hydrate for us
 		// we obtain the existing object by deep copying the desired object because it's the most convenient way
 		existing := desired.DeepCopyObject().(client.Object)
@@ -97,16 +110,9 @@ func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logg
 		}
 
 		l.V(1).Info(fmt.Sprintf("desired has been %s", op))
-		// This object is still managed by the operator, remove it from the list of objects to prune
-		delete(ownedObjects, existing.GetUID())
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to create objects for %s: %w", owner.GetName(), errors.Join(errs...))
-	}
-	// Pruning owned objects in the cluster which are not should not be present after the reconciliation.
-	err := deleteObjects(ctx, kubeClient, logger, ownedObjects)
-	if err != nil {
-		return fmt.Errorf("failed to prune objects for %s: %w", owner.GetName(), err)
 	}
 	return nil
 }

@@ -6,6 +6,15 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"github.com/aws/amazon-cloudwatch-agent-operator/internal/manifests/manifestutils"
+	"github.com/aws/amazon-cloudwatch-agent-operator/pkg/featuregate"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	networkingv1 "k8s.io/api/networking/v1"
+	policyV1 "k8s.io/api/policy/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,6 +28,7 @@ import (
 	"github.com/aws/amazon-cloudwatch-agent-operator/apis/v1alpha1"
 	"github.com/aws/amazon-cloudwatch-agent-operator/internal/config"
 	"github.com/aws/amazon-cloudwatch-agent-operator/internal/manifests"
+	"github.com/aws/amazon-cloudwatch-agent-operator/internal/manifests/collector"
 	collectorStatus "github.com/aws/amazon-cloudwatch-agent-operator/internal/status/collector"
 )
 
@@ -40,6 +50,57 @@ type Params struct {
 	Config   config.Config
 }
 
+func (r *AmazonCloudWatchAgentReconciler) findCloudWatchAgentOwnedObjects(ctx context.Context, params manifests.Params) (map[types.UID]client.Object, error) {
+	ownedObjects := map[types.UID]client.Object{}
+	listOps := &client.ListOptions{
+		Namespace:     params.OtelCol.Namespace,
+		LabelSelector: labels.SelectorFromSet(manifestutils.SelectorLabels(params.OtelCol.ObjectMeta, collector.ComponentAmazonCloudWatchAgent)),
+	}
+	hpaList := &autoscalingv2.HorizontalPodAutoscalerList{}
+	err := r.List(ctx, hpaList, listOps)
+	if err != nil {
+		return nil, fmt.Errorf("error listing HorizontalPodAutoscalers: %w", err)
+	}
+	for i := range hpaList.Items {
+		ownedObjects[hpaList.Items[i].GetUID()] = &hpaList.Items[i]
+	}
+	if featuregate.PrometheusOperatorIsAvailable.IsEnabled() {
+		servicemonitorList := &monitoringv1.ServiceMonitorList{}
+		err = r.List(ctx, servicemonitorList, listOps)
+		if err != nil {
+			return nil, fmt.Errorf("error listing ServiceMonitors: %w", err)
+		}
+		for i := range servicemonitorList.Items {
+			ownedObjects[servicemonitorList.Items[i].GetUID()] = servicemonitorList.Items[i]
+		}
+		podMonitorList := &monitoringv1.PodMonitorList{}
+		err = r.List(ctx, podMonitorList, listOps)
+		if err != nil {
+			return nil, fmt.Errorf("error listing PodMonitors: %w", err)
+		}
+		for i := range podMonitorList.Items {
+			ownedObjects[podMonitorList.Items[i].GetUID()] = podMonitorList.Items[i]
+		}
+	}
+	ingressList := &networkingv1.IngressList{}
+	err = r.List(ctx, ingressList, listOps)
+	if err != nil {
+		return nil, fmt.Errorf("error listing Ingresses: %w", err)
+	}
+	for i := range ingressList.Items {
+		ownedObjects[ingressList.Items[i].GetUID()] = &ingressList.Items[i]
+	}
+
+	pdbList := &policyV1.PodDisruptionBudgetList{}
+	err = r.List(ctx, pdbList, listOps)
+	if err != nil {
+		return nil, fmt.Errorf("error listing PodDisruptionBudgets: %w", err)
+	}
+	for i := range pdbList.Items {
+		ownedObjects[pdbList.Items[i].GetUID()] = &pdbList.Items[i]
+	}
+	return ownedObjects, nil
+}
 func (r *AmazonCloudWatchAgentReconciler) getParams(instance v1alpha1.AmazonCloudWatchAgent) manifests.Params {
 	return manifests.Params{
 		Config:   r.config,
@@ -108,7 +169,12 @@ func (r *AmazonCloudWatchAgentReconciler) Reconcile(ctx context.Context, req ctr
 	if buildErr != nil {
 		return ctrl.Result{}, buildErr
 	}
-	err := reconcileDesiredObjects(ctx, r.Client, log, &params.OtelCol, params.Scheme, desiredObjects...)
+
+	ownedObjects, err := r.findCloudWatchAgentOwnedObjects(ctx, params)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = reconcileDesiredObjectsWPrune(ctx, r.Client, log, &params.OtelCol, params.Scheme, desiredObjects, ownedObjects)
 	return collectorStatus.HandleReconcileStatus(ctx, log, params, err)
 }
 
